@@ -186,4 +186,6 @@ public class Logic implements IGameHandler{
 	public void onError(String error) {
 		log.warn("Fehler: {}", error);
 	}
+	
+	//This is a test
 }
