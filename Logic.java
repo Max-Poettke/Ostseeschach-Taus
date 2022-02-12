@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import sc.api.plugins.IGameState;
 import sc.api.plugins.IMove;
+import sc.api.plugins.ITeam;
 import sc.player.IGameHandler;
 import sc.plugin2022.GameState;
 import sc.plugin2022.Move;
@@ -33,10 +34,10 @@ public class Logic implements IGameHandler{
 	}
 
 	int anzahlGegnerischeFiguren;
-	int maxEval;
-	int minEval;
-	int evaluation;
-	int maxPoints = -1;
+	double maxEval;
+	double minEval;
+	double evaluation;
+	double maxPoints = -1;
 	
 	public boolean isGameOver() {
 		if(gameState.getPointsForTeam(gameState.getCurrentTeam()) == 2 || gameState.getRound() >= 30) {
@@ -58,7 +59,6 @@ public class Logic implements IGameHandler{
 		}
 		
 		int points = 0;
-		
 		points += clone.getPointsForTeam(clone.getCurrentTeam());
 		points += clone.getCurrentPieces().size() - anzahlGegnerischeFiguren;
 		//log.info("Gegnerische Figuren {}", points);
@@ -71,21 +71,26 @@ public class Logic implements IGameHandler{
 		System.out.println("Let's go");
 		long startTime = System.currentTimeMillis();
 		log.info("Es wurde ein Zug von {} angefordert.", gameState.getCurrentTeam());
-		
 		Move move = null;
 		
 		List<Move> possibleMoves = gameState.getPossibleMoves();
+		
 		for (Move nextMove : possibleMoves) {
 			GameState clone = gameState.clone();
 			clone.performMove(nextMove);
-			int points = alphaBetaPruning(clone, 5, -10000, 10000, true);
-			log.info("Punkte des Moves: {}",points);
+			
+			
+			double points = alphaBetaPruning(clone, 3, -10000, 10000, true);
+			
 			if(points >= maxPoints) {
 				maxPoints = points;
 				move = nextMove;
-				log.info("Der move war {}", move);
 			}
 		}
+		
+		/*for (Move nextMove : possibleMoves) {
+			
+		}*/
 /*
 		anzahlGegnerischeFiguren = 0;
 		for(int x = 0; x < 8; x++) {
@@ -120,52 +125,37 @@ public class Logic implements IGameHandler{
 		return move;
 	}
 	
-	public int alphaBetaPruning(GameState gameState, int depth, int alpha, int beta, boolean isMaximizing) {
+	public double alphaBetaPruning(GameState gameState, int depth, double alpha, double beta, boolean isMaximizing) {
 		if (depth == 0 || gameState.isOver()) {
-			//log.info("Gamestate is {}", gameState.getBoard());
 			return bewertung(gameState);
 		}
 		
-		
-		
 		List<Move> possibleMoves = gameState.getPossibleMoves();
-		//log.info("Possible moves are: {}", possibleMoves);
-		log.info("depth is {}", depth);
-		//log.info("Maximising is {}", isMaximizing);
+		
 		if(isMaximizing) {
-			maxEval = -10^10;
 			
+			maxEval = -1e9;
 			for (Move nextMove : possibleMoves) {
-				
 				GameState clone = gameState.clone();
 				clone.performMove(nextMove);
 				evaluation = alphaBetaPruning(clone , depth - 1, alpha, beta, false);
-				if (evaluation > 0) log.info("move is {}", nextMove);
 				if(evaluation > maxEval) maxEval = evaluation;
 				if(evaluation > alpha) alpha = evaluation;
-				//log.info("this is {} alpha, {} beta", alpha,beta);
-				//if(beta >= alpha) break;
-				//log.info("this should have happened a");
-				return maxEval;
+				if(alpha < maxEval) break;
 			}
-		} else if (isMaximizing != true){
-			minEval = 10^10;
+			return maxEval;
+		} else {
+			minEval = 1e10;
 			for (Move nextMove : possibleMoves) {
 				GameState clone = gameState.clone();
 				clone.performMove(nextMove);
-				
 				evaluation = alphaBetaPruning(clone, depth - 1, alpha, beta, true);
-				if(evaluation > 0) log.info("move is {}", nextMove);
 				if(evaluation < minEval) minEval = evaluation;
 				if(evaluation < beta) beta = evaluation;
-				//if(beta <= alpha) break;
-				//log.info("this should have happened b");
-				return minEval;
+				if(beta > minEval) break;
 			}
+			return minEval;
 		}
-		
-		log.info("this shouldnt have happened");
-		return bewertung(gameState); // this is just because im lazy and the compiler wants it. It will never be called
 	}
 
 	public int getPoints(GameState clone) {
