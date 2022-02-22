@@ -51,6 +51,7 @@ public class Logic implements IGameHandler{
 	int anzahlEigeneFiguren;
 	int simulationTurn;
 	int spielerVordersteLeichtfigur;
+	int searchDepth = 4;
 	
 	public boolean isGameOver() {
 		if(gameState.getPointsForTeam(gameState.getCurrentTeam()) == 2 || gameState.getRound() >= 30) {
@@ -63,175 +64,108 @@ public class Logic implements IGameHandler{
 		//Variablen
 		int bewertungspunkte = 0;
 		
-		//Bewertung gewinnen oder verlieren
-		/*if(gameState.isOver()) {
-		
-			if(gameState.getPointsForTeam(gameState.getCurrentTeam())==2 || (gameState.getTurn() == 60 && spielerVordersteLeichtfigur)) {
-				bewertungspunkte = Integer.MAX_VALUE;
-			}else {
-				bewertungspunkte = -Integer.MAX_VALUE;
-			}
-		}*/
-		
-		//Bewertung Bernsteine
-		bewertungspunkte += gameState.getPointsForTeam(gameState.getCurrentTeam()) * 200;
-		bewertungspunkte -= gameState.getPointsForTeam(gameState.getOtherTeam()) * 300;
-		
-		//Bewertung eigene Figurenanzahl: für jede existierende Figur 10 Punkte + Modifikator Figurenart (1-4)
+		//Bewertung eigene Figurenanzahl: für jede existierende Figur 10 Punkte (1-4)
 		int anzahlEigeneFiguren = gameState.getCurrentPieces().size();
 		int anzahlGegnerischerFiguren = 0;
-		int figurenModifikator = 0;
 		
-		//log.info("last move {}",gameState.getLastMove().component2());
-		
-		PieceType figurenart;
+		//PieceType figurenart;
 		for(int x = 0; x < 8; x++) {
 			for(int y = 0; y < 8; y++) {
 				Piece piece = gameState.getBoard().get(x, y);
 				if(piece != null) {
 					if(piece.getTeam().equals(gameState.getOtherTeam())){
 						anzahlGegnerischerFiguren++;
-						/*
-						figurenart = piece.getType();
-					    switch (figurenart) {
-					        case Herzmuschel:
-					            figurenModifikator += HERZMUSCHEL;
-					            break;
-					        case Moewe:
-					        	figurenModifikator += MOEWE; 
-					            break;
-					        case Robbe:
-					        	figurenModifikator += ROBBE;
-					            break;
-					        case Seestern:
-					        	figurenModifikator += SEESTERN;
-					        	break;
-					        default:
-					            System.out.println("Fehler bei Figurenbewertung");
-					            break;
-					    }
-					    */
 					}
 				}
 			}
 		}
-		log.info("test: {}", gameState.getBoard().get(gameState.getLastMove().component2()).getType());
-		PieceType type = gameState.getBoard().get(gameState.getLastMove().component2()).getType();
-		switch (type) {
-			case Seestern:
-				bewertungspunkte ++;
-				break;
-			default:
-				bewertungspunkte --;
-		}
-		if(gameState.getCurrentTeam() == gameState.getStartTeam()) {
-			bewertungspunkte += anzahlEigeneFiguren - anzahlGegnerischerFiguren;
-			//log.info("Punkte für uns: {}, {}", bewertungspunkte, gameState.getCurrentTeam());
-		} else {
-			bewertungspunkte -= anzahlEigeneFiguren - anzahlGegnerischerFiguren;
-			//log.info("Punkte für gegner: {}, {}", bewertungspunkte, gameState.getCurrentTeam());
-		}
 		
-		log.info("Punkte: {}", bewertungspunkte);
+		//looks for the pieceType for making a piecemove hierarchy
+		bewertungspunkte -= (anzahlEigeneFiguren - anzahlGegnerischerFiguren) * 10;
+		
+		
+		bewertungspunkte -= gameState.getPointsForTeam(gameState.getCurrentTeam()) * 200;
+		bewertungspunkte += gameState.getPointsForTeam(gameState.getOtherTeam()) * 300;
+		
+		log.info("Punkte: {}, move: {}", bewertungspunkte, gameState.getLastMove());
 		return bewertungspunkte;
 	}
 
 	@Override
 	public Move calculateMove() {
-		maxPoints = 0;
 		long startTime = System.currentTimeMillis();
 		log.info("Es wurde ein Zug von {} angefordert.", gameState.getCurrentTeam());
-		Move move = null;
 		
+		Move move = null;
 		List<Move> possibleMoves = gameState.getPossibleMoves();
+		maxPoints = -500;
 		
 		for (Move nextMove : possibleMoves) {
 			GameState clone = gameState.clone();
-			clone.performMove(nextMove);
 			
-			double points = alphaBetaPruning(clone, 2, -10000, 10000, true);
-			log.info("Punkte danach: {}", points);
-			if(points > maxPoints) {
-				maxPoints = points;
-				move = nextMove;
-				log.info("GameState: {}", clone.getBoard());
-			}
-		}
-		
-		/*for (Move nextMove : possibleMoves) {
-			
-		}*/
-/*
-		anzahlGegnerischeFiguren = 0;
-		for(int x = 0; x < 8; x++) {
-			for(int y = 0; y < 8; y++) {
-				Piece piece = gameState.getBoard().get(x, y);
-				if(piece != null && piece.getTeam().equals(gameState.getOtherTeam())) {
-					anzahlGegnerischeFiguren++;
+			if(clone.getBoard().get(nextMove.getFrom()).getType() == PieceType.Seestern) {
+				clone.performMove(nextMove);
+				
+				double points = 0;
+				
+				if(clone.getBoard().get(clone.getLastMove().component2()) != null) {
+					PieceType type = clone.getBoard().get(clone.getLastMove().component2()).getType();
+					switch (type) {
+						case Seestern:
+							points ++;
+							if(clone.getLastMove().getTo().getX() > clone.getLastMove().getFrom().getX()) {
+								points = points + 5;
+							}
+							break;
+						default:
+							points --;
+					}
+				}
+				
+				points += alphaBetaPruning(clone, searchDepth, -1000, 1000, true);
+				
+				if(points > maxPoints) {
+					maxPoints = points;
+					move = nextMove;
 				}
 			}
 		}
 
-
-		int maxPoints = gameState.getPointsForTeam(gameState.getCurrentTeam());
-
-		for(Move nextMove : possibleMoves) {
-			GameState clone = gameState.clone();
-			clone.performMove(nextMove);
-			int points = getPoints(clone);
-			if(points > maxPoints) {
-				maxPoints = points;
-				move = nextMove;
-			}
-		}
-		
-	
-	
-//		for(int i = 0; i < possibleMoves.size(); i++) {
-//			Move newMove = possibleMoves.get(i);
-//		}
-*/
-		log.info("Sende {} nach {}ms.", move, System.currentTimeMillis() - startTime);
+		log.info("Sende {} nach {}ms., points: {}", move, System.currentTimeMillis() - startTime, maxPoints);
 		return move;
 	}
 	
-	public double alphaBetaPruning(GameState gameState, int depth, double bestOverall, double worstOverall, boolean isMaximizing) {
-		
-		if (depth == 0 || gameState.isOver()) {
-			return bewertung(gameState);
+	
+	// really brainbreaking rekursive function that may or may not work
+	public double alphaBetaPruning(GameState currGameState, int depth, double alpha, double beta, boolean isMaximising) {
+		if(depth == 0 || currGameState.isOver()) {
+			return bewertung(currGameState);
 		}
 		
-		List<Move> possibleMoves = gameState.getPossibleMoves();
+		List<Move> possibleMoves = currGameState.getPossibleMoves();
+		log.info("depth {}", depth);
 		
-		if(isMaximizing) {
+		if(isMaximising) {
 			maxEval = -1e9;
-			for (Move nextMove : possibleMoves) {
-				GameState clone = gameState.clone();
+			for(Move nextMove : possibleMoves) {
+				GameState clone = currGameState.clone();
 				clone.performMove(nextMove);
-				evaluation = alphaBetaPruning(clone , depth - 1, bestOverall, worstOverall, false);
-				if(evaluation > maxEval) maxEval = evaluation;
-				if(evaluation > bestOverall) bestOverall = evaluation;
-				if(worstOverall <= bestOverall) {
-					log.info("broke out of loop");
-					break;
-				}
+				evaluation = alphaBetaPruning(clone, depth - 1, alpha, beta, false);
+				if (evaluation > maxEval) maxEval = evaluation;
+				if (evaluation > alpha) alpha = evaluation;
+				if (beta <= alpha) break;
 			}
-			//log.info("maxEval: {}", maxEval);
 			return maxEval;
 		} else {
-			minEval = 1e10;
-			for (Move nextMove : possibleMoves) {
-				GameState clone = gameState.clone();
+			minEval = 1e9;
+			for(Move nextMove : possibleMoves) {
+				GameState clone = currGameState.clone();
 				clone.performMove(nextMove);
-				evaluation = alphaBetaPruning(clone, depth - 1, bestOverall, worstOverall, true);
-				if(evaluation < minEval) minEval = evaluation;
-				if(evaluation < worstOverall) worstOverall= evaluation;
-				if(worstOverall <= bestOverall) {
-					log.info("broke out of loop");
-					break;
-				}
+				evaluation = alphaBetaPruning(clone, depth - 1, alpha, beta, true);
+				if (evaluation < minEval) minEval = evaluation;
+				if (evaluation < beta) beta = evaluation;
+				if (beta <= alpha) break;
 			}
-			//log.info("minEval: {}", minEval);
 			return minEval;
 		}
 	}
