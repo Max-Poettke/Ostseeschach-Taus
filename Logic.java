@@ -3,43 +3,30 @@ package sc.player2022.logic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import sc.api.plugins.IGameState;
-import sc.api.plugins.IMove;
 import sc.api.plugins.ITeam;
+import sc.api.plugins.Team;
 import sc.player.IGameHandler;
-import sc.plugin2022.Coordinates;
+import sc.plugin2022.Board;
 import sc.plugin2022.GameState;
 import sc.plugin2022.Move;
 import sc.plugin2022.Piece;
 import sc.plugin2022.PieceType;
-import sc.protocol.room.RoomMessage;
+import sc.plugin2022.util.Constants;
 import sc.shared.GameResult;
-import sc.shared.IMoveMistake;
-import sc.shared.InvalidMoveException;
-import sc.util.GameResultConverter;
-
 import java.util.List;
+
 
 /**
  * Das Herz des Clients: Eine sehr simple Logik, die ihre Zuege zufaellig
  * waehlt, aber gueltige Zuege macht.
- * <p>
  * Ausserdem werden zum Spielverlauf Konsolenausgaben gemacht.
  */
-public class Logic implements IGameHandler{
+
+public class Logic implements IGameHandler, ITeam{
 	private static final Logger log = LoggerFactory.getLogger(Logic.class);
 
 	/** Aktueller Spielstatus. */
 	private GameState gameState;
-	
-	public void onGameOver(GameResult data) {
-		log.info("Das Spiel ist beendet, Ergebnis: {}", data);
-	}
-
-	int anzahlGegnerischeFiguren;
-	double maxEval;
-	double minEval;
-	double evaluation;
-	double maxPoints = -1;
 	
 	//Werte der einzelnen Spielfiguren (je höher, desto besser)
 	final static public int HERZMUSCHEL = 1;
@@ -47,50 +34,193 @@ public class Logic implements IGameHandler{
 	final static public int ROBBE = 3;
 	final static public int SEESTERN = 4;
 	
-	//sonstige Variablen (muss noch überarbeitet werden)
+	//sonstige Variablen (muss noch überarbeitet werden, für aktuelle Logik)
+	int anzahlGegnerischeFiguren;
 	int anzahlEigeneFiguren;
 	int simulationTurn;
 	int spielerVordersteLeichtfigur;
-	int searchDepth = 4;
+	double maxEval;
+	double minEval;
+	double evaluation;
+	double maxPoints = -1;
+	int searchDepth = 2;
+	int count = 0;
 	
-	public boolean isGameOver() {
-		if(gameState.getPointsForTeam(gameState.getCurrentTeam()) == 2 || gameState.getRound() >= 30) {
-			return true;
+	//Hilfsfunktionen Bewertung
+	//Hilfsfunktion: gibt 1 zurück, wenn das CurrentTeam die Leichtfiguren weiter vorne hat
+	public int gewinnerBestimmenZugweite(GameState gameState){ 
+		int gewinner = 0;
+		Board board = gameState.getBoard();
+		int gegner=0;
+		int selber=0;
+		log.info("Am Zug: {}", gameState.getCurrentTeam());
+		for(int x=1; x<8; x++){
+			for(int y=0; y<8; y++){
+				Piece ownPiece = board.get(7-x, y);
+				Piece otherPiece = board.get(x, y);
+				if(ownPiece != null && ownPiece.getType().isLight() && ownPiece.getTeam() == gameState.getCurrentTeam()) {
+					selber++;
+				}
+				if(otherPiece != null && otherPiece.getType().isLight() && otherPiece.getTeam() == gameState.getOtherTeam()) {
+					gegner++;
+				}
+			}
+			if(gegner!=selber) {
+				break;
+			}
 		}
-		return false;
+		if(gegner<selber){
+			log.info("CurrentTeam hat gewonnenTeam gegner: {} Team selber:{}", gegner, selber);
+			gewinner = 1;
+		}else if(gegner>selber){
+			log.info("OtherTeam hat gewonnen. Team gegner: {} Team selber:{}", gegner, selber);
+		}
+		
+		return gewinner;
 	}
-
-	public int bewertung(GameState gameState) {
-		//Variablen
-		int bewertungspunkte = 0;
-		
-		//Bewertung eigene Figurenanzahl: für jede existierende Figur 10 Punkte (1-4)
-		int anzahlEigeneFiguren = gameState.getCurrentPieces().size();
-		int anzahlGegnerischerFiguren = 0;
-		
-		//PieceType figurenart;
-		for(int x = 0; x < 8; x++) {
-			for(int y = 0; y < 8; y++) {
-				Piece piece = gameState.getBoard().get(x, y);
-				if(piece != null) {
-					if(piece.getTeam().equals(gameState.getOtherTeam())){
-						anzahlGegnerischerFiguren++;
+	
+	//Hilfsfunktion: Zugweite der Figuren
+	//Werte: figureninformation[0] = abstandTeam1 | figureninformation[1] = abstandTeam2 | 
+	//Bewertung: 1 Punkt pro Feld, Seesterne doppelt
+	//Beispielwerte points: 5, -6, 4, 10, -2
+	public int figureninformation(GameState gameState){
+		int points = 0;
+		int[] figureninformation = new int[2];
+		Board board = gameState.getBoard();
+		for(int y=0; y<8; y++){
+			for(int x=1; x<7; x++){
+				Piece aktuelleFigur = board.get(x,y);
+				if(aktuelleFigur != null && aktuelleFigur.getType().isLight()){
+					if(aktuelleFigur.getTeam().toString() == "ONE") {
+						figureninformation[0] += x;
+						if(aktuelleFigur.getType() == PieceType.Seestern) {
+							figureninformation[0]+=x;
+						}
+					}else if(aktuelleFigur.getTeam().toString() == "TWO") {
+						figureninformation[1] += 7-x;
+						if(aktuelleFigur.getType() == PieceType.Seestern) {
+							figureninformation[1]+= 7-x;
+						}
 					}
 				}
 			}
 		}
-		
-		//looks for the pieceType for making a piecemove hierarchy
-		bewertungspunkte -= (anzahlEigeneFiguren - anzahlGegnerischerFiguren) * 10;
-		
-		
-		bewertungspunkte -= gameState.getPointsForTeam(gameState.getCurrentTeam()) * 200;
-		bewertungspunkte += gameState.getPointsForTeam(gameState.getOtherTeam()) * 300;
-		
-		log.info("Punkte: {}, move: {}", bewertungspunkte, gameState.getLastMove());
+		points = figureninformation[0] - figureninformation[1];
+		//log.info("Bewertung roter Abstands: {} , Bewertung blauer Abstand: {} Gesamtwertung: {}", figureninformation[0], figureninformation[1], points);	
+		return points;
+	}
+	
+	//Hilfsfunktion: Figurenanzahl, zählt die Figuren (inkl. Figurenmodifikation)
+	//Werte: figurenzahl[0] = Anzahl rote Figuren | figurenanzahl[1] = Anzahl blaue Figuren
+	//Bewertung: 50 pro Figur + Figurenmodifikator
+	//Beispielwerte points: 1, -158, 1, 48, -2
+	public int figurenanzahl(GameState gameState) {
+		int points = 0;
+		int[] punkte = new int[2];
+		Board board = gameState.getBoard();
+		for(int y=0; y<8; y++){
+			for(int x=0; x<8; x++){
+				Piece aktuelleFigur = board.get(x,y);
+				if(aktuelleFigur != null) {
+					PieceType figurenart = aktuelleFigur.getType();
+					int figurenpunkte = 0;
+				    switch (figurenart) {
+				        case Herzmuschel:
+				            figurenpunkte += HERZMUSCHEL;
+				            break;
+				        case Moewe:
+				        	figurenpunkte += MOEWE; 
+				            break;
+				        case Robbe:
+				        	figurenpunkte += ROBBE;
+				            break;
+				        case Seestern:
+				        	figurenpunkte += SEESTERN;
+				        	break;
+				        default:
+				            System.out.println("Fehler bei Figurenbewertung");
+				            break;
+				    }
+					if(aktuelleFigur.getTeam().toString() == "ONE") {
+						punkte[0]+= (figurenpunkte +50);
+					}else{
+						punkte[1]+= (figurenpunkte +50);
+					}
+				}
+			}
+		}
+		points = punkte[0]-punkte[1];
+		//log.info("Figurenanzahl rot: {} , Figurenanzahl blau: {}, Punkte: {}", punkte[0], punkte[1], points);
+		return points;
+	}
+	
+	//Hilfsfunktion: Bernsteine
+	//Werte: bernsteine[0] = bernsteinpunkte Team1 | bernsteine[1] = bernsteinpunkte Team2
+	//Bewertung:200 pro Bernstein
+	//Beispielwertung: -400, 0, 400, 400, 400
+	public int bernsteine(GameState gameState) {
+		int points = 0;
+		int[] bernsteine = new int[2];
+		 bernsteine[0]+= gameState.getPointsForTeam(Team.ONE) * 200;
+		 bernsteine[1]+= gameState.getPointsForTeam(Team.TWO) * 200; 
+		 points = bernsteine[0]-bernsteine[1];
+		 //log.info("Bernsteine Team1: {} , Bernsteine Team2: {} , Punkte: {}", bernsteine[0], bernsteine[1], points);
+		return points;
+	}
+	
+	//Hilfsfunktion: Türme
+		//Werte: turm[0] = Anzahl Türme Team1 | turm[1] = Anzahl Turm Team2
+		//Bewertung: 20 pro Turm
+		//Beispielwertung: 0, 0, 20, 0, 20
+	public int turm(GameState gameState) {
+		int points = 0;
+		int[] turm = new int[2];
+		Board board = gameState.getBoard();
+		for(int y=0; y<8; y++){
+			for(int x=0; x<8; x++){
+				Piece piece = board.get(x,y);
+				if(piece != null && piece.getCount() >1) {
+					if(piece.getTeam() == Team.ONE) {
+						turm[0]+= 20;
+					}else {
+						turm[1]+= 20;
+					}
+				}
+			}
+		}
+		points = turm[0]-turm[1];
+		 //log.info("Anzahl Turm Team1: {} , Anzahl Turm Team2: {} , Punkte: {}", turm[0], turm[1], points);
+		return points;
+	}	
+	
+	//Bewertungsfunktion
+	// Beispielwerte bewertungspunkte: x, -164, 405, 458, 396
+	public int bewertung(GameState gameState) {
+		int bewertungspunkte = 0;
+		//Bewertung gewinnen oder verlieren
+		if(gameState.isOver()) {
+			if(gameState.getPointsForTeam(gameState.getCurrentTeam())>=2
+					|| (gameState.getTurn() == 60 && gameState.getPointsForTeam(gameState.getCurrentTeam()) > gameState.getPointsForTeam(gameState.getOtherTeam()))
+					|| ((gameState.getTurn() == 60 && gameState.getPointsForTeam(gameState.getCurrentTeam()) == gameState.getPointsForTeam(gameState.getOtherTeam()) && gewinnerBestimmenZugweite(gameState) == 1))
+			) {
+				bewertungspunkte = Integer.MAX_VALUE - 1;
+				log.info("Gewonnen");
+				return bewertungspunkte;
+			}else {
+				bewertungspunkte = -Integer.MAX_VALUE + 1;
+				log.info("Verloren");
+				return bewertungspunkte;
+			}
+		}
+		bewertungspunkte += figureninformation(gameState);
+		bewertungspunkte += figurenanzahl(gameState) ;
+		bewertungspunkte += bernsteine(gameState);
+		bewertungspunkte += turm(gameState);
+		log.info("Zug: {}", gameState.getLastMove());
+		log.info("Punkte Bewertungsfunktion: {}", bewertungspunkte);
 		return bewertungspunkte;
 	}
-
+	
 	@Override
 	public Move calculateMove() {
 		long startTime = System.currentTimeMillis();
@@ -98,40 +228,37 @@ public class Logic implements IGameHandler{
 		
 		Move move = null;
 		List<Move> possibleMoves = gameState.getPossibleMoves();
-		maxPoints = -500;
-		
+		if(gameState.getCurrentTeam() == Team.ONE){
+			maxPoints = -Integer.MAX_VALUE;
+		}else {
+			maxPoints = Integer.MAX_VALUE;
+		}
+		count = 0;
 		for (Move nextMove : possibleMoves) {
 			GameState clone = gameState.clone();
+			clone.performMove(nextMove);
 			
-			if(clone.getBoard().get(nextMove.getFrom()).getType() == PieceType.Seestern) {
-				clone.performMove(nextMove);
-				
-				double points = 0;
-				
-				if(clone.getBoard().get(clone.getLastMove().component2()) != null) {
-					PieceType type = clone.getBoard().get(clone.getLastMove().component2()).getType();
-					switch (type) {
-						case Seestern:
-							points ++;
-							if(clone.getLastMove().getTo().getX() > clone.getLastMove().getFrom().getX()) {
-								points = points + 5;
-							}
-							break;
-						default:
-							points --;
-					}
-				}
-				
-				points += alphaBetaPruning(clone, searchDepth, -1000, 1000, true);
-				
+			double points = 0;
+			if(clone.getCurrentTeam() == Team.TWO){
+				log.info("Meine Lieblingsfarbe ist rot");
+				points += alphaBetaPruning(clone, searchDepth, -1000, 1000, false);
+				log.info("Punkte calculateMove: {}", points);
 				if(points > maxPoints) {
+					maxPoints = points;
+					move = nextMove;
+				}
+			}else {
+				log.info("Meine Lieblingsfarbe ist blau");
+				points += alphaBetaPruning(clone, searchDepth, -1000, 1000, true);
+				log.info("Punkte calculateMove: {}", points);
+				if(points < maxPoints) {
 					maxPoints = points;
 					move = nextMove;
 				}
 			}
 		}
-
 		log.info("Sende {} nach {}ms., points: {}", move, System.currentTimeMillis() - startTime, maxPoints);
+		log.info("Count: {}", count);
 		return move;
 	}
 	
@@ -139,13 +266,16 @@ public class Logic implements IGameHandler{
 	// really brainbreaking rekursive function that may or may not work
 	public double alphaBetaPruning(GameState currGameState, int depth, double alpha, double beta, boolean isMaximising) {
 		if(depth == 0 || currGameState.isOver()) {
-			return bewertung(currGameState);
+			int punkte = bewertung(currGameState);
+			log.info("Punkte Pruning: {}", punkte); 
+			return punkte;
 		}
-		
+		count++;
 		List<Move> possibleMoves = currGameState.getPossibleMoves();
 		log.info("depth {}", depth);
 		
 		if(isMaximising) {
+			log.info("Überlege für Spieler1");
 			maxEval = -1e9;
 			for(Move nextMove : possibleMoves) {
 				GameState clone = currGameState.clone();
@@ -157,6 +287,7 @@ public class Logic implements IGameHandler{
 			}
 			return maxEval;
 		} else {
+			log.info("Überlege für Spieler2");
 			minEval = 1e9;
 			for(Move nextMove : possibleMoves) {
 				GameState clone = currGameState.clone();
@@ -170,6 +301,14 @@ public class Logic implements IGameHandler{
 		}
 	}
 
+	public int getPoints(GameState clone) {
+		int points = 0;
+
+		points += clone.getPointsForTeam(gameState.getCurrentTeam());
+		points += anzahlGegnerischeFiguren - clone.getCurrentPieces().size();
+		return points;
+	}
+
 	@Override
 	public void onUpdate(IGameState gameState) {
 		this.gameState = (GameState) gameState;
@@ -180,32 +319,30 @@ public class Logic implements IGameHandler{
 	public void onError(String error) {
 		log.warn("Fehler: {}", error);
 	}
-}
 
-class FigurenDaten{
-	public Coordinates[] Robbe = new Coordinates[2];
-	public Coordinates[] Moewe = new Coordinates[2];
-	public Coordinates[] Seestern = new Coordinates[2];
-	public Coordinates[] Herzmuschel = new Coordinates[2];
-	
-	public FigurenDaten(PieceType[] figurenTypen, Coordinates[] koordinaten){
-		int[] positionen = new int[4];
-		for(int i=0; i< figurenTypen.length && figurenTypen[i]!=null; i++) {
-		    switch (figurenTypen[i]) {
-		        case Herzmuschel:
-		        	Herzmuschel[positionen[0]++] = koordinaten[i];
-		            break;
-		        case Moewe:
-		        	Moewe[positionen[1]++] = koordinaten[i];
-		            break;
-		        case Robbe:
-		        	Robbe[positionen[2]++] = koordinaten[i];
-		            break;
-		        case Seestern:
-		        	Seestern[positionen[3]++] = koordinaten[i];
-		        	break;
-		    }
-			
-		}
+
+	public void onGameOver(GameResult data) {
+		log.info("Das Spiel ist beendet, Ergebnis: {}", data);
+		bewertung(gameState);
 	}
+
+	@Override
+	public int getIndex() {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	@Override
+	public String getName() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ITeam opponent() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	
 }
