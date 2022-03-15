@@ -11,6 +11,7 @@ import sc.plugin2022.GameState;
 import sc.plugin2022.Move;
 import sc.plugin2022.Piece;
 import sc.plugin2022.PieceType;
+import sc.plugin2022.Vector;
 import sc.plugin2022.util.Constants;
 import sc.shared.GameResult;
 import java.util.List;
@@ -193,6 +194,34 @@ public class Logic implements IGameHandler, ITeam{
 		return points;
 	}	
 	
+	public int freieZüge(GameState gameState) {
+		int points = 0;
+		
+		Board board = gameState.getBoard();
+		Piece piece = board.get(gameState.getLastMove().component2());
+		if(piece == null) {
+			return 0;
+		}
+		List<Vector> futureMoves = piece.getPossibleMoves();
+		int freeMoveCount = futureMoves.size();
+		
+		List<Move> opponentMoves = new GameState(gameState.getBoard(), gameState.getTurn() - 1).getPossibleMoves();
+		for(Vector futureMove : futureMoves) {
+			for (Move possibleEnemyMove : opponentMoves) {
+				if (possibleEnemyMove.component2().getX() == gameState.getLastMove().component2().getX() + futureMove.getDx()) {
+					if(possibleEnemyMove.component2().getY() == gameState.getLastMove().component2().getY() + futureMove.getDy()) {
+						freeMoveCount --;
+						break;
+					}
+					break;
+				}
+			}
+		}
+		
+		points += freeMoveCount;
+		return points;
+	}
+	
 	//Bewertungsfunktion
 	// Beispielwerte bewertungspunkte: x, -164, 405, 458, 396
 	public int bewertung(GameState gameState) {
@@ -216,6 +245,7 @@ public class Logic implements IGameHandler, ITeam{
 		bewertungspunkte += figurenanzahl(gameState) ;
 		bewertungspunkte += bernsteine(gameState);
 		bewertungspunkte += turm(gameState);
+		bewertungspunkte += freieZüge(gameState);
 		log.info("Zug: {}", gameState.getLastMove());
 		log.info("Punkte Bewertungsfunktion: {}", bewertungspunkte);
 		return bewertungspunkte;
@@ -299,14 +329,6 @@ public class Logic implements IGameHandler, ITeam{
 			}
 			return minEval;
 		}
-	}
-
-	public int getPoints(GameState clone) {
-		int points = 0;
-
-		points += clone.getPointsForTeam(gameState.getCurrentTeam());
-		points += anzahlGegnerischeFiguren - clone.getCurrentPieces().size();
-		return points;
 	}
 
 	@Override
