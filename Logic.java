@@ -7,6 +7,7 @@ import sc.api.plugins.ITeam;
 import sc.api.plugins.Team;
 import sc.player.IGameHandler;
 import sc.plugin2022.Board;
+import sc.plugin2022.Coordinates;
 import sc.plugin2022.GameState;
 import sc.plugin2022.Move;
 import sc.plugin2022.Piece;
@@ -14,7 +15,11 @@ import sc.plugin2022.PieceType;
 import sc.plugin2022.Vector;
 import sc.plugin2022.util.Constants;
 import sc.shared.GameResult;
+
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 
 
 /**
@@ -94,13 +99,16 @@ public class Logic implements IGameHandler, ITeam{
 				if(aktuelleFigur != null && aktuelleFigur.getType().isLight()){
 					if(aktuelleFigur.getTeam().toString() == "ONE") {
 						figureninformation[0] += x;
+						figureninformation[0] += attackiertFiguren(aktuelleFigur, x, y, gameState);
 						if(aktuelleFigur.getType() == PieceType.Seestern) {
 							figureninformation[0]+=x;
 						}
 					}else if(aktuelleFigur.getTeam().toString() == "TWO") {
 						figureninformation[1] += 7-x;
+						figureninformation[1] += attackiertFiguren(aktuelleFigur, x, y, gameState);
 						if(aktuelleFigur.getType() == PieceType.Seestern) {
 							figureninformation[1]+= 7-x;
+							
 						}
 					}
 				}
@@ -108,6 +116,36 @@ public class Logic implements IGameHandler, ITeam{
 		}
 		points = figureninformation[0] - figureninformation[1];
 		//log.info("Bewertung roter Abstands: {} , Bewertung blauer Abstand: {} Gesamtwertung: {}", figureninformation[0], figureninformation[1], points);	
+		return points;
+	}
+	
+	//todo: Weg finden gegnerische Figurenkoordinaten zu finden und pro schlagbarer Figur points hochzählen
+	public int attackiertFiguren(Piece piece, int pieceX, int pieceY, GameState gameState) {
+		int points = 0;
+		int attackedPieces = 0;
+		Board board = gameState.getBoard();
+		List<Vector> futureMoves = piece.getPossibleMoves();
+		log.info("currentTurn: {}", gameState.getTurn());
+		if(gameState.getTurn() == 0) return 0;
+		Map<Coordinates, Piece> enemyPiecesMap = new GameState(board, gameState.getTurn() - 1).getCurrentPieces();
+		List<Coordinates> enemyPieces = new ArrayList<Coordinates>();
+		
+		for(Map.Entry<Coordinates, Piece> pair : enemyPiecesMap.entrySet()){
+			enemyPieces.add(pair.getKey());
+		}
+		
+		for(Vector futureMove : futureMoves) {
+			pieceX += futureMove.component1();
+			pieceY += futureMove.component2();
+			for(Coordinates enemyPiece : enemyPieces) {
+				if(pieceX == enemyPiece.getX() && pieceY == enemyPiece.getY()) {
+					attackedPieces ++;
+				}
+			}
+		}
+		
+		points = attackedPieces;
+		
 		return points;
 	}
 	
@@ -196,12 +234,13 @@ public class Logic implements IGameHandler, ITeam{
 	
 	public int freieZüge(GameState gameState) {
 		int points = 0;
-		
 		Board board = gameState.getBoard();
 		Piece piece = board.get(gameState.getLastMove().component2());
+		
 		if(piece == null) {
 			return 0;
 		}
+		
 		List<Vector> futureMoves = piece.getPossibleMoves();
 		int freeMoveCount = futureMoves.size();
 		
