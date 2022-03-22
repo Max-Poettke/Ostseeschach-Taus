@@ -101,14 +101,17 @@ public class Logic implements IGameHandler, ITeam{
 						figureninformation[0] += x;
 						figureninformation[0] += attackiertFiguren(aktuelleFigur, x, y, gameState);
 						if(aktuelleFigur.getType() == PieceType.Seestern) {
-							figureninformation[0]+=x;
+							figureninformation[0]+=x * 2;
+						} else if (aktuelleFigur.getType() == PieceType.Moewe) {
+							figureninformation[0]+= x;
 						}
 					}else if(aktuelleFigur.getTeam().toString() == "TWO") {
 						figureninformation[1] += 7-x;
 						figureninformation[1] += attackiertFiguren(aktuelleFigur, x, y, gameState);
 						if(aktuelleFigur.getType() == PieceType.Seestern) {
+							figureninformation[1]+= (7-x) * 2;
+						} else if (aktuelleFigur.getType() == PieceType.Moewe) {
 							figureninformation[1]+= 7-x;
-							
 						}
 					}
 				}
@@ -201,7 +204,7 @@ public class Logic implements IGameHandler, ITeam{
 		int points = 0;
 		int[] bernsteine = new int[2];
 		 bernsteine[0]+= gameState.getPointsForTeam(Team.ONE) * 200;
-		 bernsteine[1]+= gameState.getPointsForTeam(Team.TWO) * 200; 
+		 bernsteine[1]+= gameState.getPointsForTeam(Team.TWO) * 200;
 		 points = bernsteine[0]-bernsteine[1];
 		 //log.info("Bernsteine Team1: {} , Bernsteine Team2: {} , Punkte: {}", bernsteine[0], bernsteine[1], points);
 		return points;
