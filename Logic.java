@@ -99,7 +99,7 @@ public class Logic implements IGameHandler, ITeam{
 				if(aktuelleFigur != null && aktuelleFigur.getType().isLight()){
 					if(aktuelleFigur.getTeam().toString() == "ONE") {
 						figureninformation[0] += x;
-						figureninformation[0] += attackiertFiguren(aktuelleFigur, x, y, gameState);
+						figureninformation[0] += figurenInteraktionen(aktuelleFigur, x, y, gameState);
 						
 						//Falls eine Figur ein Turm ist soll sie Priorität beim Ziehen bekommen
 						if(aktuelleFigur.getCount() > 1) {
@@ -113,7 +113,7 @@ public class Logic implements IGameHandler, ITeam{
 						
 					}else if(aktuelleFigur.getTeam().toString() == "TWO") {
 						figureninformation[1] += 7-x;
-						figureninformation[1] += attackiertFiguren(aktuelleFigur, x, y, gameState);
+						figureninformation[1] += figurenInteraktionen(aktuelleFigur, x, y, gameState);
 						
 						//Falls eine Figur ein Turm ist soll sie Priorität beim Ziehen bekommen
 						if(aktuelleFigur.getCount() > 1) {
@@ -133,7 +133,7 @@ public class Logic implements IGameHandler, ITeam{
 	}
 	
 	//todo: Weg finden gegnerische Figurenkoordinaten zu finden und pro schlagbarer Figur points hochzählen
-	public int attackiertFiguren(Piece piece, int pieceX, int pieceY, GameState gameState) {
+	public int figurenInteraktionen(Piece piece, int pieceX, int pieceY, GameState gameState) {
 		int points = 0;
 		int attackedPieces = 0;
 		int protectedPieces = 0;
@@ -159,12 +159,15 @@ public class Logic implements IGameHandler, ITeam{
 		for(Vector futureMove : futureMoves) {
 			pieceX += futureMove.component1();
 			pieceY += futureMove.component2();
+			
+			//Check how many Pieces are being attacked by the moving piece
 			for(Coordinates enemyPiece : enemyPieces) {
 				if(pieceX == enemyPiece.getX() && pieceY == enemyPiece.getY()) {
 					attackedPieces ++;
 				}
 			}
 			
+			//Check how many Pieces are being Protected by the moving piece
 			for(Coordinates allyPiece : allyPieces) {
 				if(pieceX == allyPiece.getX() && pieceY == allyPiece.getY()) {
 					protectedPieces ++;
