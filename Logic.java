@@ -100,17 +100,27 @@ public class Logic implements IGameHandler, ITeam{
 					if(aktuelleFigur.getTeam().toString() == "ONE") {
 						figureninformation[0] += x;
 						figureninformation[0] += attackiertFiguren(aktuelleFigur, x, y, gameState);
-						if(aktuelleFigur.getType() == PieceType.Seestern) {
-							figureninformation[0]+=x * 2;
-						} else if (aktuelleFigur.getType() == PieceType.Moewe) {
-							figureninformation[0]+= x;
+						
+						//Falls eine Figur ein Turm ist soll sie Priorität beim Ziehen bekommen
+						if(aktuelleFigur.getCount() > 1) {
+							figureninformation[0] += 15;
 						}
+						
+						if(aktuelleFigur.getType() == PieceType.Seestern) {
+							figureninformation[0]+=x;
+						}
+						
+						
 					}else if(aktuelleFigur.getTeam().toString() == "TWO") {
 						figureninformation[1] += 7-x;
 						figureninformation[1] += attackiertFiguren(aktuelleFigur, x, y, gameState);
+						
+						//Falls eine Figur ein Turm ist soll sie Priorität beim Ziehen bekommen
+						if(aktuelleFigur.getCount() > 1) {
+							figureninformation[1] += 15;
+						}
+							
 						if(aktuelleFigur.getType() == PieceType.Seestern) {
-							figureninformation[1]+= (7-x) * 2;
-						} else if (aktuelleFigur.getType() == PieceType.Moewe) {
 							figureninformation[1]+= 7-x;
 						}
 					}
@@ -148,7 +158,6 @@ public class Logic implements IGameHandler, ITeam{
 		}
 		
 		points = attackedPieces;
-		
 		return points;
 	}
 	
