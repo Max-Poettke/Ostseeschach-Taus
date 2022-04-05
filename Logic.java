@@ -136,12 +136,21 @@ public class Logic implements IGameHandler, ITeam{
 	public int attackiertFiguren(Piece piece, int pieceX, int pieceY, GameState gameState) {
 		int points = 0;
 		int attackedPieces = 0;
+		int protectedPieces = 0;
 		Board board = gameState.getBoard();
 		List<Vector> futureMoves = piece.getPossibleMoves();
 		log.info("currentTurn: {}", gameState.getTurn());
 		if(gameState.getTurn() == 0) return 0;
+		Map<Coordinates, Piece> allyPiecesMap = new GameState(board, gameState.getTurn()).getCurrentPieces();
+		List<Coordinates> allyPieces = new ArrayList<Coordinates>();
+		
 		Map<Coordinates, Piece> enemyPiecesMap = new GameState(board, gameState.getTurn() - 1).getCurrentPieces();
 		List<Coordinates> enemyPieces = new ArrayList<Coordinates>();
+		
+		//add only the coordinates of the pieces to a seperate List for later use
+		for(Map.Entry<Coordinates, Piece> pair : allyPiecesMap.entrySet()) {
+			allyPieces.add(pair.getKey());
+		}
 		
 		for(Map.Entry<Coordinates, Piece> pair : enemyPiecesMap.entrySet()){
 			enemyPieces.add(pair.getKey());
@@ -155,9 +164,15 @@ public class Logic implements IGameHandler, ITeam{
 					attackedPieces ++;
 				}
 			}
+			
+			for(Coordinates allyPiece : allyPieces) {
+				if(pieceX == allyPiece.getX() && pieceY == allyPiece.getY()) {
+					protectedPieces ++;
+				}
+			}
 		}
 		
-		points = attackedPieces;
+		points = attackedPieces + protectedPieces;
 		return points;
 	}
 	
