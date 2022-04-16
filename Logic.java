@@ -362,7 +362,7 @@ public class Logic implements IGameHandler, ITeam{
 	}
 	
 	
-	// really brainbreaking rekursive function that may or may not work
+	// really brainbreaking recursive function that may or may not work. P.S. it works
 	public double alphaBetaPruning(GameState currGameState, int depth, double alpha, double beta, boolean isMaximising) {
 		if(depth == 0 || currGameState.isOver()) {
 			int punkte = bewertung(currGameState);
