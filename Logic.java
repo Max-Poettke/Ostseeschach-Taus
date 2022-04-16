@@ -108,8 +108,19 @@ public class Logic implements IGameHandler, ITeam{
 						
 						if(aktuelleFigur.getType() == PieceType.Seestern) {
 							figureninformation[0]+=x;
+							
+							int figurenImWeg = 0;
+							if (x >= 4) {
+							  for (int i = x; i < 7; i ++) {
+							    for (int j = Math.max(0, y - 1); j <= y + 1 && j < 8; j ++) {
+							      if ((Piece) board.get(i, j) != null && aktuelleFigur.getTeam() == Team.TWO) {
+							        figurenImWeg ++;
+							      }
+							    }
+							  }
+							}
+							if(figurenImWeg == 0) points += 5;
 						}
-						
 						
 					}else if(aktuelleFigur.getTeam().toString() == "TWO") {
 						figureninformation[1] += 7-x;
@@ -122,6 +133,17 @@ public class Logic implements IGameHandler, ITeam{
 							
 						if(aktuelleFigur.getType() == PieceType.Seestern) {
 							figureninformation[1]+= 7-x;
+							int figurenImWeg = 0;
+							if (x >= 4) {
+							  for (int i = x; i < 7; i ++) {
+							    for (int j = Math.max(0, y - 1); j <= y + 1 && j < 8; j ++) {
+							      if ((Piece) board.get(i, j) != null && aktuelleFigur.getTeam() == Team.ONE) {
+							        figurenImWeg ++;
+							      }
+							    }
+							  }
+							}
+							if(figurenImWeg == 0) points += 5;
 						}
 					}
 				}
