@@ -45,6 +45,8 @@ public class Logic implements IGameHandler, ITeam{
 	int anzahlEigeneFiguren;
 	int simulationTurn;
 	int spielerVordersteLeichtfigur;
+	int bernSteineJetzt;
+	boolean additionalCheckEnabled = true;
 	double maxEval;
 	double minEval;
 	double evaluation;
@@ -52,8 +54,24 @@ public class Logic implements IGameHandler, ITeam{
 	int searchDepth = 2;
 	int count = 0;
 	
+	int [] enemyAttackedSquares = new int [64];
+	
 	//Hilfsfunktionen Bewertung
 	//Hilfsfunktion: gibt 1 zurück, wenn das CurrentTeam die Leichtfiguren weiter vorne hat
+	
+	
+	public int CoordinatesToInteger(int x, int y) {
+		return x + y * 8;
+	}
+	public Coordinates IntegerToCoordinates(int i) {
+		Coordinates c = new Coordinates(Math.floorDiv(i, 8), i % 8);
+		return c;
+	}
+	
+	public void initialiseArray() {
+		
+	}
+	
 	public int gewinnerBestimmenZugweite(GameState gameState){ 
 		int gewinner = 0;
 		Board board = gameState.getBoard();
@@ -149,6 +167,7 @@ public class Logic implements IGameHandler, ITeam{
 				}
 			}
 		}
+		
 		points = figureninformation[0] - figureninformation[1];
 		//log.info("Bewertung roter Abstands: {} , Bewertung blauer Abstand: {} Gesamtwertung: {}", figureninformation[0], figureninformation[1], points);	
 		return points;
@@ -317,17 +336,18 @@ public class Logic implements IGameHandler, ITeam{
 	// Beispielwerte bewertungspunkte: x, -164, 405, 458, 396
 	public int bewertung(GameState gameState) {
 		int bewertungspunkte = 0;
+		initialiseArray();
 		//Bewertung gewinnen oder verlieren
 		if(gameState.isOver()) {
 			if(gameState.getPointsForTeam(gameState.getCurrentTeam())>=2
 					|| (gameState.getTurn() == 60 && gameState.getPointsForTeam(gameState.getCurrentTeam()) > gameState.getPointsForTeam(gameState.getOtherTeam()))
 					|| ((gameState.getTurn() == 60 && gameState.getPointsForTeam(gameState.getCurrentTeam()) == gameState.getPointsForTeam(gameState.getOtherTeam()) && gewinnerBestimmenZugweite(gameState) == 1))
 			) {
-				bewertungspunkte = Integer.MAX_VALUE - 1;
+				bewertungspunkte = 10000;
 				log.info("Gewonnen");
 				return bewertungspunkte;
 			}else {
-				bewertungspunkte = -Integer.MAX_VALUE + 1;
+				bewertungspunkte = -10000;
 				log.info("Verloren");
 				return bewertungspunkte;
 			}
@@ -362,14 +382,16 @@ public class Logic implements IGameHandler, ITeam{
 			double points = 0;
 			if(clone.getCurrentTeam() == Team.TWO){
 				log.info("Meine Lieblingsfarbe ist rot");
+				additionalCheckEnabled = true;
 				points += alphaBetaPruning(clone, searchDepth, -1000, 1000, false);
 				log.info("Punkte calculateMove: {}", points);
 				if(points > maxPoints) {
-					maxPoints = points;
+					maxPoints = points;	
 					move = nextMove;
 				}
 			}else {
 				log.info("Meine Lieblingsfarbe ist blau");
+				additionalCheckEnabled = true;
 				points += alphaBetaPruning(clone, searchDepth, -1000, 1000, true);
 				log.info("Punkte calculateMove: {}", points);
 				if(points < maxPoints) {
@@ -388,9 +410,15 @@ public class Logic implements IGameHandler, ITeam{
 	public double alphaBetaPruning(GameState currGameState, int depth, double alpha, double beta, boolean isMaximising) {
 		if(depth == 0 || currGameState.isOver()) {
 			int punkte = bewertung(currGameState);
-			log.info("Punkte Pruning: {}", punkte); 
+			log.info("Punkte Pruning: {}", punkte);
 			return punkte;
 		}
+		
+		//Falls der Gegner gerade am Zug ist 
+		if(depth == 1) {
+			bernSteineJetzt = gameState.getPointsForTeam(Team.ONE) + gameState.getPointsForTeam(Team.TWO);
+		}
+		
 		count++;
 		List<Move> possibleMoves = currGameState.getPossibleMoves();
 		log.info("depth {}", depth);
@@ -401,6 +429,16 @@ public class Logic implements IGameHandler, ITeam{
 			for(Move nextMove : possibleMoves) {
 				GameState clone = currGameState.clone();
 				clone.performMove(nextMove);
+				
+				//Versucht aufzufangen falls der Gegner im nächsten Zug einen Berstein bekommen soll unbedachte Züge zu tun
+				if(depth == 1) {
+					int bernSteinÄnderung = clone.getPointsForTeam(Team.ONE) + clone.getPointsForTeam(Team.TWO) - bernSteineJetzt;
+					if(bernSteinÄnderung > 0 && additionalCheckEnabled == true) {
+						depth ++;
+						additionalCheckEnabled = false;
+					}
+				}
+				
 				evaluation = alphaBetaPruning(clone, depth - 1, alpha, beta, false);
 				if (evaluation > maxEval) maxEval = evaluation;
 				if (evaluation > alpha) alpha = evaluation;
@@ -413,6 +451,16 @@ public class Logic implements IGameHandler, ITeam{
 			for(Move nextMove : possibleMoves) {
 				GameState clone = currGameState.clone();
 				clone.performMove(nextMove);
+				
+				//Versucht aufzufangen falls der Gegner im nächsten Zug einen Berstein bekommen soll unbedachte Züge zu tun
+				if(depth == 1) {
+					int bernSteinÄnderung = clone.getPointsForTeam(Team.ONE) + clone.getPointsForTeam(Team.TWO) - bernSteineJetzt;
+					if(bernSteinÄnderung > 0 && additionalCheckEnabled == true) {
+						depth ++;
+						additionalCheckEnabled = false;
+					}
+				}
+				
 				evaluation = alphaBetaPruning(clone, depth - 1, alpha, beta, true);
 				if (evaluation < minEval) minEval = evaluation;
 				if (evaluation < beta) beta = evaluation;
