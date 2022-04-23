@@ -54,7 +54,7 @@ public class Logic implements IGameHandler, ITeam{
 	int searchDepth = 2;
 	int count = 0;
 	
-	int [] enemyAttackedSquares = new int [64];
+	int [] unsafeSquares = new int [64];
 	
 	//Hilfsfunktionen Bewertung
 	//Hilfsfunktion: gibt 1 zurück, wenn das CurrentTeam die Leichtfiguren weiter vorne hat
@@ -68,8 +68,28 @@ public class Logic implements IGameHandler, ITeam{
 		return c;
 	}
 	
-	public void initialiseArray() {
+	public void updateArray() {
+		unsafeSquares = new int [64];
+		Board board = gameState.getBoard();
+		Map<Coordinates, Piece> allyPiecesMap = new GameState(board, gameState.getTurn() - 1).getCurrentPieces();
 		
+		for(Map.Entry<Coordinates, Piece> pair : allyPiecesMap.entrySet()) {
+			Piece pc = pair.getValue();
+			Coordinates cd = pair.getKey();
+			List<Vector> moves = pc.getPossibleMoves();
+			for(Vector move : moves) {
+				int pieceX = cd.getX() + move.getDx();
+				int pieceY = cd.getY() + move.getDy();
+				
+				log.info("cd.getX = {}, cd.getY = {}, move.getDx = {}, move.getDy = {}, pieceX = {}, pieceY = {}", cd.getX(), cd.getY(), move.getDx(), move.getDy(), pieceX, pieceY);
+				
+				if(CoordinatesToInteger(pieceX, pieceY) < 0 || CoordinatesToInteger(pieceX, pieceY) > 63) {
+					continue;
+				}
+				
+				unsafeSquares[CoordinatesToInteger(pieceX,pieceY)] = 1;
+			}
+		}
 	}
 	
 	public int gewinnerBestimmenZugweite(GameState gameState){ 
@@ -124,20 +144,22 @@ public class Logic implements IGameHandler, ITeam{
 							figureninformation[0] += 15;
 						}
 						
-						if(aktuelleFigur.getType() == PieceType.Seestern) {
-							figureninformation[0]+=x;
-							
-							int figurenImWeg = 0;
-							if (x >= 4) {
-							  for (int i = x; i < 7; i ++) {
-							    for (int j = Math.max(0, y - 1); j <= y + 1 && j < 8; j ++) {
-							      if ((Piece) board.get(i, j) != null && aktuelleFigur.getTeam() == Team.TWO) {
-							        figurenImWeg ++;
-							      }
-							    }
-							  }
+						log.info("{}", x);
+						
+						figureninformation[0]+=x;
+						int felderImWeg = 0;
+						
+						for(int i = x + 1; i < 7; i ++) {
+							if(unsafeSquares[CoordinatesToInteger(i, y)] == 1) {
+								felderImWeg ++;
 							}
-							if(figurenImWeg == 0) points += 5;
+						}
+						
+						if(felderImWeg	== 0) {
+							points += 2*x;
+							if(aktuelleFigur.getType() == PieceType.Seestern) {
+								points += 2*x;
+							}
 						}
 						
 					}else if(aktuelleFigur.getTeam().toString() == "TWO") {
@@ -148,20 +170,20 @@ public class Logic implements IGameHandler, ITeam{
 						if(aktuelleFigur.getCount() > 1) {
 							figureninformation[1] += 15;
 						}
-							
-						if(aktuelleFigur.getType() == PieceType.Seestern) {
-							figureninformation[1]+= 7-x;
-							int figurenImWeg = 0;
-							if (x >= 4) {
-							  for (int i = x; i < 7; i ++) {
-							    for (int j = Math.max(0, y - 1); j <= y + 1 && j < 8; j ++) {
-							      if ((Piece) board.get(i, j) != null && aktuelleFigur.getTeam() == Team.ONE) {
-							        figurenImWeg ++;
-							      }
-							    }
-							  }
+						
+						int felderImWeg = 0;
+						for(int i = x - 1; i >= 0; i --) {
+							if(unsafeSquares[CoordinatesToInteger(i, y)] == 1) {
+								log.info("feld gefunden");
+								felderImWeg ++;
 							}
-							if(figurenImWeg == 0) points += 5;
+						}
+						
+						if(felderImWeg == 0) {
+							points += 2*(7-x);
+							if(aktuelleFigur.getType() == PieceType.Seestern) {
+								points += 2*(7-x);
+							}
 						}
 					}
 				}
@@ -336,7 +358,7 @@ public class Logic implements IGameHandler, ITeam{
 	// Beispielwerte bewertungspunkte: x, -164, 405, 458, 396
 	public int bewertung(GameState gameState) {
 		int bewertungspunkte = 0;
-		initialiseArray();
+		
 		//Bewertung gewinnen oder verlieren
 		if(gameState.isOver()) {
 			if(gameState.getPointsForTeam(gameState.getCurrentTeam())>=2
@@ -366,6 +388,10 @@ public class Logic implements IGameHandler, ITeam{
 	public Move calculateMove() {
 		long startTime = System.currentTimeMillis();
 		log.info("Es wurde ein Zug von {} angefordert.", gameState.getCurrentTeam());
+		
+		if(gameState.getTurn() != 0) {
+			updateArray();
+		}
 		
 		Move move = null;
 		List<Move> possibleMoves = gameState.getPossibleMoves();
